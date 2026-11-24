@@ -1,0 +1,46 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: meltano-uk-grid-elt
+  namespace: data-showcase
+spec:
+  # Runs at :05 and :35 past every hour (right after NESO publishes new half-hourly data)
+  schedule: "5,35 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 300
+      template:
+        metadata:
+          labels:
+            app: meltano-elt
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: meltano-elt
+              image: ghcr.io/sean-stock/seanstock-data-platform-meltano:latest
+              imagePullPolicy: Always
+              env:
+                - name: DATA_DIR
+                  value: /data
+                - name: SUPERSET_DATA_DIR
+                  value: /data
+                - name: LOOKBACK_HOURS
+                  value: "48"
+              volumeMounts:
+                - name: warehouse-data
+                  mountPath: /data
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  cpu: 1000m
+                  memory: 768Mi
+          volumes:
+            - name: warehouse-data
+              persistentVolumeClaim:
+                claimName: warehouse-data-pvc

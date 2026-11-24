@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.meltano/
+
+# Data & local artifacts
+data/
+*.duckdb
+*.duckdb.wal
+*.parquet
+
+# Secrets & env
+.env
+.env.*
+k8s/secrets.yaml
+!k8s/secrets.example.yaml
+
+# OS
+.DS_Store

@@ -1,0 +1,154 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: superset
+  namespace: data-showcase
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: superset
+  template:
+    metadata:
+      labels:
+        app: superset
+    spec:
+      initContainers:
+        - name: superset-init
+          image: ghcr.io/sean-stock/seanstock-data-platform-superset:latest
+          imagePullPolicy: Always
+          command: ["/app/init/init.sh"]
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: platform-secrets
+                  key: POSTGRES_PASSWORD
+            - name: SUPERSET_METADATA_DB_URI
+              value: "postgresql+psycopg2://superset:$(POSTGRES_PASSWORD)@postgres:5432/superset"
+            - name: SUPERSET_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: platform-secrets
+                  key: SUPERSET_SECRET_KEY
+            - name: SUPERSET_GUEST_TOKEN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: platform-secrets
+                  key: SUPERSET_GUEST_TOKEN_SECRET
+            - name: SUPERSET_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: platform-secrets
+                  key: SUPERSET_ADMIN_USER
+            - name: SUPERSET_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: platform-secrets
+                  key: SUPERSET_ADMIN_PASSWORD
+            - name: SUPERSET_EMBED_USER
+              valueFrom:
+                secretKeyRef:
+                  name: platform-secrets
+                  key: SUPERSET_EMBED_USER
+            - name: SUPERSET_EMBED_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: platform-secrets
+                  key: SUPERSET_EMBED_PASSWORD
+            - name: REDIS_HOST
+              value: redis
+            - name: DATA_DIR
+              value: /data
+          volumeMounts:
+            - name: warehouse-data
+              mountPath: /data
+              readOnly: true
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: 1500m
+              memory: 1536Mi
+      containers:
+        - name: superset
+          image: ghcr.io/sean-stock/seanstock-data-platform-superset:latest
+          imagePullPolicy: Always
+          command:
+            - gunicorn
+            - --bind=0.0.0.0:8088
+            - --workers=2
+            - --worker-class=gthread
+            - --threads=4
+            - --timeout=60
+            - --limit-request-line=0
+            - --limit-request-field_size=0
+            - "superset.app:create_app()"
+          ports:
+            - containerPort: 8088
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: platform-secrets
+                  key: POSTGRES_PASSWORD
+            - name: SUPERSET_METADATA_DB_URI
+              value: "postgresql+psycopg2://superset:$(POSTGRES_PASSWORD)@postgres:5432/superset"
+            - name: SUPERSET_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: platform-secrets
+                  key: SUPERSET_SECRET_KEY
+            - name: SUPERSET_GUEST_TOKEN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: platform-secrets
+                  key: SUPERSET_GUEST_TOKEN_SECRET
+            - name: REDIS_HOST
+              value: redis
+            - name: DATA_DIR
+              value: /data
+          volumeMounts:
+            - name: warehouse-data
+              mountPath: /data
+              readOnly: true
+          resources:
+            requests:
+              cpu: 200m
+              memory: 1024Mi
+            limits:
+              cpu: 1500m
+              memory: 2560Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8088
+            initialDelaySeconds: 25
+            periodSeconds: 15
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8088
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 5
+      volumes:
+        - name: warehouse-data
+          persistentVolumeClaim:
+            claimName: warehouse-data-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: superset
+  namespace: data-showcase
+spec:
+  selector:
+    app: superset
+  ports:
+    - port: 8088
+      targetPort: 8088

@@ -1,0 +1,41 @@
+version: 1
+default_environment: prod
+project_id: seanstock-uk-grid-platform
+send_anonymous_usage_stats: false
+
+environments:
+  - name: dev
+    config:
+      plugins:
+        utilities:
+          - name: uk-grid-elt
+            config:
+              data_dir: ../data
+              lookback_hours: 168
+  - name: prod
+    config:
+      plugins:
+        utilities:
+          - name: uk-grid-elt
+            config:
+              data_dir: /data
+              lookback_hours: 48
+
+plugins:
+  utilities:
+    - name: uk-grid-elt
+      namespace: uk_grid_elt
+      executable: python3
+      commands:
+        extract:
+          args: scripts/extract_uk_grid.py
+        transform:
+          args: scripts/build_gold_marts.py
+        run:
+          args: scripts/run_pipeline.py
+
+jobs:
+  - name: uk-grid-refresh
+    tasks:
+      - uk-grid-elt:extract
+      - uk-grid-elt:transform

@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: warehouse-data-pvc
+  namespace: data-showcase
+spec:
+  accessModes:
+    - ReadWriteOnce
+  # Omit storageClassName to use your single-node cluster's default (e.g. local-path on k3s).
+  # Uncomment and set explicitly if your cluster has no default StorageClass:
+  # storageClassName: local-path
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-data-pvc
+  namespace: data-showcase
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi

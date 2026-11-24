@@ -1,0 +1,79 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: superset
+      POSTGRES_PASSWORD: superset_local_dev_password
+      POSTGRES_DB: superset
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U superset"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--maxmemory", "192mb", "--maxmemory-policy", "allkeys-lru"]
+
+  meltano-elt:
+    build: ./meltano
+    environment:
+      DATA_DIR: /data
+      SUPERSET_DATA_DIR: /data
+      LOOKBACK_HOURS: "72"
+    volumes:
+      - ./data:/data
+
+  superset-init:
+    build: ./superset
+    depends_on:
+      postgres:
+        condition: service_healthy
+      meltano-elt:
+        condition: service_completed_successfully
+    environment:
+      SUPERSET_SECRET_KEY: local-dev-secret-key-change-me
+      SUPERSET_GUEST_TOKEN_SECRET: local-dev-guest-secret-change-me
+      SUPERSET_METADATA_DB_URI: postgresql+psycopg2://superset:superset_local_dev_password@postgres:5432/superset
+      SUPERSET_ADMIN_USER: admin
+      SUPERSET_ADMIN_PASSWORD: admin
+      SUPERSET_EMBED_USER: embed_service
+      SUPERSET_EMBED_PASSWORD: embed_local_dev_password
+      REDIS_HOST: redis
+      DATA_DIR: /data
+    volumes:
+      - ./data:/data:ro
+    command: ["/app/init/init.sh"]
+
+  superset:
+    build: ./superset
+    depends_on:
+      superset-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
+    ports:
+      - "8088:8088"
+    environment:
+      SUPERSET_SECRET_KEY: local-dev-secret-key-change-me
+      SUPERSET_GUEST_TOKEN_SECRET: local-dev-guest-secret-change-me
+      SUPERSET_METADATA_DB_URI: postgresql+psycopg2://superset:superset_local_dev_password@postgres:5432/superset
+      REDIS_HOST: redis
+      DATA_DIR: /data
+    volumes:
+      - ./data:/data:ro
+    command:
+      - gunicorn
+      - --bind=0.0.0.0:8088
+      - --workers=2
+      - --worker-class=gthread
+      - --threads=4
+      - --timeout=60
+      - --limit-request-line=0
+      - --limit-request-field_size=0
+      - "superset.app:create_app()"
+
+volumes:
+  pg_data:
