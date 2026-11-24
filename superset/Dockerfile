@@ -5,6 +5,7 @@ USER root
 RUN pip install --no-cache-dir \
     "duckdb>=1.1,<2.0" \
     "duckdb-engine>=0.13,<1.0" \
+    "flask-cors>=4.0,<6.0" \
     "psycopg2-binary>=2.9,<3.0" \
     "redis>=5.0,<6.0"
 
