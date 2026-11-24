@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [ -f /app/.venv/bin/activate ]; then
+  # shellcheck disable=SC1091
+  . /app/.venv/bin/activate
+fi
+
 echo "[superset-init] Upgrading Superset metadata DB..."
 superset db upgrade
 
