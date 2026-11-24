@@ -74,7 +74,10 @@ TALISMAN_CONFIG = {
     "force_https": False,  # TLS terminated by Cloudflare Tunnel
 }
 
-# Custom SeanStock.dev Themes (Ant Design v5 tokens matching seanstock.dev)
+# Custom SeanStock.dev Branding & Themes (Ant Design v5 tokens matching seanstock.dev)
+APP_NAME = "seanstock.dev"
+APP_ICON = "/static/assets/images/seanstock-logo-dark.svg"
+FAVICONS = [{"href": "/static/assets/images/seanstock-favicon.svg"}]
 ENABLE_UI_THEME_ADMINISTRATION = True
 
 SEANSTOCK_FONT_URLS = [
@@ -84,7 +87,12 @@ SEANSTOCK_FONT_URLS = [
 SEANSTOCK_DARK_THEME = {
     "algorithm": "dark",
     "token": {
-        "brandAppName": "SeanStock.dev BI",
+        "brandAppName": "seanstock.dev",
+        "brandLogoAlt": "seanstock.dev",
+        "brandLogoUrl": "/static/assets/images/seanstock-logo-dark.svg",
+        "brandLogoHeight": "30px",
+        "brandLogoMargin": "10px 0",
+        "brandLogoHref": "/",
         "colorPrimary": "#22d3ee",
         "colorLink": "#22d3ee",
         "colorLinkHover": "#38bdf8",
@@ -116,7 +124,12 @@ THEME_DARK = SEANSTOCK_DARK_THEME
 THEME_DEFAULT = {
     "algorithm": "default",
     "token": {
-        "brandAppName": "SeanStock.dev BI",
+        "brandAppName": "seanstock.dev",
+        "brandLogoAlt": "seanstock.dev",
+        "brandLogoUrl": "/static/assets/images/seanstock-logo-light.svg",
+        "brandLogoHeight": "30px",
+        "brandLogoMargin": "10px 0",
+        "brandLogoHref": "/",
         "colorPrimary": "#0284c7",
         "colorLink": "#0284c7",
         "colorSuccess": "#059669",

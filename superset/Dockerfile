@@ -14,6 +14,7 @@ RUN . /app/.venv/bin/activate && \
       "redis>=5.0,<6.0"
 
 COPY superset_config.py /app/pythonpath/superset_config.py
+COPY assets/ /app/superset/static/assets/images/
 COPY init/ /app/init/
 RUN chmod +x /app/init/init.sh
 

@@ -109,10 +109,16 @@ def main() -> None:
                     db.session.commit()
                     print("[bootstrap] Updated custom theme: SeanStock.dev Dark")
 
-                # Keep system THEME_DARK synchronized as well
+                # Keep system THEME_DARK and THEME_DEFAULT synchronized as well
                 sys_dark = db.session.query(Theme).filter_by(theme_name="THEME_DARK").first()
                 if sys_dark:
                     sys_dark.json_data = theme_json
+                    db.session.commit()
+
+                default_theme_data = app.config.get("THEME_DEFAULT")
+                sys_default = db.session.query(Theme).filter_by(theme_name="THEME_DEFAULT").first()
+                if sys_default and default_theme_data:
+                    sys_default.json_data = json.dumps(default_theme_data)
                     db.session.commit()
 
                 # Apply SeanStock.dev Dark to Dashboard #1 if not explicitly assigned another theme
