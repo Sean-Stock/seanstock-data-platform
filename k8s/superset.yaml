@@ -15,6 +15,8 @@ spec:
       labels:
         app: superset
     spec:
+      nodeSelector:
+        kubernetes.io/hostname: k3s-worker-1
       initContainers:
         - name: superset-init
           image: ghcr.io/sean-stock/seanstock-data-platform-superset:latest
@@ -68,11 +70,11 @@ spec:
               readOnly: true
           resources:
             requests:
-              cpu: 200m
-              memory: 512Mi
+              cpu: 150m
+              memory: 256Mi
             limits:
               cpu: 1500m
-              memory: 1536Mi
+              memory: 1024Mi
       containers:
         - name: superset
           image: ghcr.io/sean-stock/seanstock-data-platform-superset:latest
@@ -80,7 +82,7 @@ spec:
           command:
             - gunicorn
             - --bind=0.0.0.0:8088
-            - --workers=2
+            - --workers=1
             - --worker-class=gthread
             - --threads=4
             - --timeout=60
@@ -117,11 +119,11 @@ spec:
               readOnly: true
           resources:
             requests:
-              cpu: 200m
-              memory: 1024Mi
+              cpu: 150m
+              memory: 512Mi
             limits:
               cpu: 1500m
-              memory: 2560Mi
+              memory: 1280Mi
           readinessProbe:
             httpGet:
               path: /health

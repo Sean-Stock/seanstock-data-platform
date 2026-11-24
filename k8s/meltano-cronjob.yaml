@@ -18,6 +18,8 @@ spec:
           labels:
             app: meltano-elt
         spec:
+          nodeSelector:
+            kubernetes.io/hostname: k3s-worker-1
           restartPolicy: Never
           containers:
             - name: meltano-elt
@@ -36,10 +38,10 @@ spec:
               resources:
                 requests:
                   cpu: 100m
-                  memory: 256Mi
+                  memory: 128Mi
                 limits:
                   cpu: 1000m
-                  memory: 768Mi
+                  memory: 512Mi
           volumes:
             - name: warehouse-data
               persistentVolumeClaim:
