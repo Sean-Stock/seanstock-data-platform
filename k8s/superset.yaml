@@ -15,6 +15,7 @@ spec:
       labels:
         app: superset
     spec:
+      enableServiceLinks: false
       nodeSelector:
         kubernetes.io/hostname: k3s-worker-1
       initContainers:

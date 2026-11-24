@@ -73,8 +73,11 @@ TALISMAN_CONFIG = {
 }
 
 # Redis Cache (keeps repeated portfolio visits fast and CPU idle)
-REDIS_HOST = os.environ.get("REDIS_HOST", "redis")
-REDIS_PORT = int(os.environ.get("REDIS_PORT", "6379"))
+# Note: Kubernetes auto-injects REDIS_PORT=tcp://<ip>:6379 for Services named "redis",
+# so read CACHE_REDIS_PORT first and defensively extract the trailing port number.
+REDIS_HOST = os.environ.get("CACHE_REDIS_HOST") or os.environ.get("REDIS_HOST", "redis")
+_raw_redis_port = os.environ.get("CACHE_REDIS_PORT") or os.environ.get("REDIS_PORT", "6379")
+REDIS_PORT = int(str(_raw_redis_port).rsplit(":", 1)[-1])
 
 CACHE_CONFIG = {
     "CACHE_TYPE": "RedisCache",

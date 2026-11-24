@@ -114,18 +114,26 @@ def main() -> int:
     con = duckdb.connect(":memory:")
     con.execute("SET TimeZone = 'UTC';")
 
+    # Helper SQL expression normalizing ISO-8601 strings missing seconds (e.g. "2026-11-22T21:00Z")
+    # so DuckDB parses them identically across all DuckDB 1.x releases.
+    def ts_expr(col: str) -> str:
+        return (
+            f"CAST(regexp_replace(CAST({col} AS VARCHAR), "
+            f"'^([0-9]{{4}}-[0-9]{{2}}-[0-9]{{2}}T[0-9]{{2}}:[0-9]{{2}})Z$', '\\1:00Z') AS TIMESTAMPTZ)"
+        )
+
     # 1. Gold National Intensity (deduplicated + forecast accuracy metrics)
     con.execute(
         f"""
         COPY (
             WITH raw AS (
                 SELECT
-                    CAST(interval_start AS TIMESTAMPTZ) AS interval_start,
-                    CAST(interval_end AS TIMESTAMPTZ) AS interval_end,
+                    {ts_expr('interval_start')} AS interval_start,
+                    {ts_expr('interval_end')} AS interval_end,
                     CAST(forecast_gco2 AS DOUBLE) AS forecast_gco2,
                     CAST(actual_gco2 AS DOUBLE) AS actual_gco2,
                     CAST(intensity_index AS VARCHAR) AS intensity_index,
-                    CAST(extracted_at AS TIMESTAMPTZ) AS extracted_at
+                    {ts_expr('extracted_at')} AS extracted_at
                 FROM read_json_auto('{bronze_dir / 'national_intensity' / '*.jsonl'}')
             ),
             dedup AS (
@@ -155,8 +163,8 @@ def main() -> int:
         COPY (
             WITH raw AS (
                 SELECT
-                    CAST(interval_start AS TIMESTAMPTZ) AS interval_start,
-                    CAST(interval_end AS TIMESTAMPTZ) AS interval_end,
+                    {ts_expr('interval_start')} AS interval_start,
+                    {ts_expr('interval_end')} AS interval_end,
                     CAST(region_id AS INTEGER) AS region_id,
                     CAST(dno_region AS VARCHAR) AS dno_region,
                     CAST(region_name AS VARCHAR) AS region_name,
@@ -171,7 +179,7 @@ def main() -> int:
                     CAST(coal_pct AS DOUBLE) AS coal_pct,
                     CAST(imports_pct AS DOUBLE) AS imports_pct,
                     CAST(other_pct AS DOUBLE) AS other_pct,
-                    CAST(extracted_at AS TIMESTAMPTZ) AS extracted_at
+                    {ts_expr('extracted_at')} AS extracted_at
                 FROM read_json_auto('{bronze_dir / 'regional_intensity' / '*.jsonl'}')
             ),
             dedup AS (
@@ -212,11 +220,11 @@ def main() -> int:
         COPY (
             WITH raw AS (
                 SELECT
-                    CAST(interval_start AS TIMESTAMPTZ) AS interval_start,
-                    CAST(interval_end AS TIMESTAMPTZ) AS interval_end,
+                    {ts_expr('interval_start')} AS interval_start,
+                    {ts_expr('interval_end')} AS interval_end,
                     CAST(fuel AS VARCHAR) AS fuel,
                     CAST(perc AS DOUBLE) AS perc,
-                    CAST(extracted_at AS TIMESTAMPTZ) AS extracted_at
+                    {ts_expr('extracted_at')} AS extracted_at
                 FROM read_json_auto('{bronze_dir / 'national_generation' / '*.jsonl'}')
             )
             SELECT interval_start, interval_end, fuel, perc, extracted_at
@@ -233,13 +241,13 @@ def main() -> int:
         COPY (
             WITH wx_raw AS (
                 SELECT
-                    CAST(hour_start AS TIMESTAMPTZ) AS hour_start,
+                    {ts_expr('hour_start')} AS hour_start,
                     CAST(temperature_c AS DOUBLE) AS temperature_c,
                     CAST(wind_speed_10m_kmh AS DOUBLE) AS wind_speed_10m_kmh,
                     CAST(wind_speed_100m_kmh AS DOUBLE) AS wind_speed_100m_kmh,
                     CAST(wind_gusts_10m_kmh AS DOUBLE) AS wind_gusts_10m_kmh,
                     CAST(solar_radiation_wm2 AS DOUBLE) AS solar_radiation_wm2,
-                    CAST(extracted_at AS TIMESTAMPTZ) AS extracted_at
+                    {ts_expr('extracted_at')} AS extracted_at
                 FROM read_json_auto('{bronze_dir / 'northwich_weather' / '*.jsonl'}')
             ),
             wx AS (
