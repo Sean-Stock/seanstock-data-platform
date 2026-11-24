@@ -55,20 +55,22 @@ CORS_OPTIONS = {
     "origins": ALLOWED_EMBED_ORIGINS,
 }
 
-# Frame ancestors & security headers
-HTTP_HEADERS = {"X-Frame-Options": "ALLOWALL"}
+# Frame ancestors & security headers (allow embedding strictly on seanstock.dev)
+HTTP_HEADERS = {}
 TALISMAN_ENABLED = True
 TALISMAN_CONFIG = {
     "content_security_policy": {
         "default-src": ["'self'"],
         "img-src": ["'self'", "blob:", "data:"],
+        "font-src": ["'self'", "data:"],
         "worker-src": ["'self'", "blob:"],
         "connect-src": ["'self'", "https://bi.seanstock.dev"],
         "object-src": "'none'",
         "style-src": ["'self'", "'unsafe-inline'"],
-        "script-src": ["'self'", "'strict-dynamic'", "'unsafe-inline'", "'unsafe-eval'"],
+        "script-src": ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
         "frame-ancestors": ["'self'", *ALLOWED_EMBED_ORIGINS],
     },
+    "frame_options": None,  # Rely on CSP frame-ancestors so seanstock.dev can embed
     "force_https": False,  # TLS terminated by Cloudflare Tunnel
 }
 
