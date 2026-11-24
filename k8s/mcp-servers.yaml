@@ -1,0 +1,155 @@
+# LAN-only MCP servers for local AI-assisted BI & SQL workflows.
+# IMPORTANT: Never expose these via Cloudflare Tunnel — they are restricted to
+# private home LAN NodePorts on k3s-worker-1 (192.168.68.212:30508 & :30509).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: superset-mcp
+  namespace: data-showcase
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: superset-mcp
+  template:
+    metadata:
+      labels:
+        app: superset-mcp
+    spec:
+      enableServiceLinks: false
+      nodeSelector:
+        kubernetes.io/hostname: k3s-worker-1
+      containers:
+        - name: superset-mcp
+          image: ghcr.io/sean-stock/seanstock-data-platform-superset:latest
+          imagePullPolicy: Always
+          command:
+            - /app/.venv/bin/superset
+            - mcp
+            - run
+            - --host
+            - 0.0.0.0
+            - --port
+            - "5008"
+          ports:
+            - containerPort: 5008
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: platform-secrets
+                  key: POSTGRES_PASSWORD
+            - name: SUPERSET_METADATA_DB_URI
+              value: "postgresql+psycopg2://superset:$(POSTGRES_PASSWORD)@postgres:5432/superset"
+            - name: SUPERSET_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: platform-secrets
+                  key: SUPERSET_SECRET_KEY
+            - name: SUPERSET_GUEST_TOKEN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: platform-secrets
+                  key: SUPERSET_GUEST_TOKEN_SECRET
+            - name: REDIS_HOST
+              value: redis
+            - name: DATA_DIR
+              value: /data
+            - name: MCP_DEV_USERNAME
+              value: admin
+          volumeMounts:
+            - name: warehouse-data
+              mountPath: /data
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 192Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: warehouse-data
+          persistentVolumeClaim:
+            claimName: warehouse-data-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: superset-mcp
+  namespace: data-showcase
+spec:
+  type: NodePort
+  selector:
+    app: superset-mcp
+  ports:
+    - port: 5008
+      targetPort: 5008
+      nodePort: 30508
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: duckdb-mcp
+  namespace: data-showcase
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: duckdb-mcp
+  template:
+    metadata:
+      labels:
+        app: duckdb-mcp
+    spec:
+      enableServiceLinks: false
+      nodeSelector:
+        kubernetes.io/hostname: k3s-worker-1
+      containers:
+        - name: duckdb-mcp
+          image: ghcr.io/sean-stock/seanstock-data-platform-meltano:latest
+          imagePullPolicy: Always
+          command:
+            - mcp-server-motherduck
+            - --transport
+            - http
+            - --host
+            - 0.0.0.0
+            - --port
+            - "8000"
+            - --db-path
+            - /data/views.duckdb
+            - --ephemeral-connections
+            - --query-timeout
+            - "30"
+          ports:
+            - containerPort: 8000
+          volumeMounts:
+            - name: warehouse-data
+              mountPath: /data
+              readOnly: true
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+      volumes:
+        - name: warehouse-data
+          persistentVolumeClaim:
+            claimName: warehouse-data-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: duckdb-mcp
+  namespace: data-showcase
+spec:
+  type: NodePort
+  selector:
+    app: duckdb-mcp
+  ports:
+    - port: 8000
+      targetPort: 8000
+      nodePort: 30509

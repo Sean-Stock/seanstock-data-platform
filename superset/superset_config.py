@@ -122,6 +122,13 @@ ROW_LIMIT = 50000
 SQL_MAX_ROW = 50000
 SUPERSET_WEBSERVER_TIMEOUT = 60
 
+# Native Superset 6.x Model Context Protocol (MCP) service (LAN-only NodePort, never public)
+ENABLE_MCP_SERVICE = True
+MCP_SERVICE_HOST = os.environ.get("MCP_SERVICE_HOST", "0.0.0.0")
+MCP_SERVICE_PORT = int(os.environ.get("MCP_SERVICE_PORT", "5008"))
+MCP_DEV_USERNAME = os.environ.get("MCP_DEV_USERNAME", "admin")
+MCP_SERVICE_URL = os.environ.get("MCP_SERVICE_URL", "http://192.168.68.212:30508/mcp")
+
 # Register a lightweight, unauthenticated read-only endpoint for pipeline-meta.json
 # so seanstock.dev can display live Meltano sync telemetry without an extra sidecar.
 def FLASK_APP_MUTATOR(app):  # noqa: N802

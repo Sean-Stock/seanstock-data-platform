@@ -10,4 +10,5 @@ resources:
   - redis.yaml
   - meltano-cronjob.yaml
   - superset.yaml
+  - mcp-servers.yaml
   - cloudflared.yaml
