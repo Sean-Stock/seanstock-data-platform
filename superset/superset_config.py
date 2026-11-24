@@ -62,17 +62,98 @@ TALISMAN_CONFIG = {
     "content_security_policy": {
         "default-src": ["'self'"],
         "img-src": ["'self'", "blob:", "data:"],
-        "font-src": ["'self'", "data:"],
+        "font-src": ["'self'", "data:", "https://fonts.gstatic.com"],
         "worker-src": ["'self'", "blob:"],
         "connect-src": ["'self'", "https://bi.seanstock.dev"],
         "object-src": "'none'",
-        "style-src": ["'self'", "'unsafe-inline'"],
+        "style-src": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         "script-src": ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
         "frame-ancestors": ["'self'", *ALLOWED_EMBED_ORIGINS],
     },
     "frame_options": None,  # Rely on CSP frame-ancestors so seanstock.dev can embed
     "force_https": False,  # TLS terminated by Cloudflare Tunnel
 }
+
+# Custom SeanStock.dev Themes (Ant Design v5 tokens matching seanstock.dev)
+ENABLE_UI_THEME_ADMINISTRATION = True
+
+SEANSTOCK_FONT_URLS = [
+    "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap",
+]
+
+SEANSTOCK_DARK_THEME = {
+    "algorithm": "dark",
+    "token": {
+        "brandAppName": "SeanStock.dev BI",
+        "colorPrimary": "#22d3ee",
+        "colorLink": "#22d3ee",
+        "colorLinkHover": "#38bdf8",
+        "colorInfo": "#38bdf8",
+        "colorSuccess": "#10b981",
+        "colorWarning": "#f59e0b",
+        "colorError": "#f43f5e",
+        "colorBgBase": "#090b10",
+        "colorBgLayout": "#0d1119",
+        "colorBgContainer": "#111622",
+        "colorBgElevated": "#161d2c",
+        "colorBorder": "#232c3d",
+        "colorBorderSecondary": "#1c2433",
+        "colorTextBase": "#f1f5f9",
+        "colorText": "#f1f5f9",
+        "colorTextSecondary": "#94a3b8",
+        "colorTextTertiary": "#64748b",
+        "borderRadius": 10,
+        "borderRadiusLG": 14,
+        "borderRadiusSM": 6,
+        "fontFamily": "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+        "fontFamilyCode": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace",
+        "fontUrls": SEANSTOCK_FONT_URLS,
+    },
+}
+
+THEME_DARK = SEANSTOCK_DARK_THEME
+
+THEME_DEFAULT = {
+    "algorithm": "default",
+    "token": {
+        "brandAppName": "SeanStock.dev BI",
+        "colorPrimary": "#0284c7",
+        "colorLink": "#0284c7",
+        "colorSuccess": "#059669",
+        "colorWarning": "#d97706",
+        "colorError": "#e11d48",
+        "colorBgBase": "#f8fafc",
+        "colorBgLayout": "#f1f5f9",
+        "colorBgContainer": "#ffffff",
+        "colorTextBase": "#0f172a",
+        "borderRadius": 10,
+        "borderRadiusLG": 14,
+        "fontFamily": "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+        "fontFamilyCode": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace",
+        "fontUrls": SEANSTOCK_FONT_URLS,
+    },
+}
+
+EXTRA_CATEGORICAL_COLOR_SCHEMES = [
+    {
+        "id": "seanstock_palette",
+        "description": "SeanStock.dev dark-first cyan & emerald analytics palette",
+        "label": "SeanStock.dev",
+        "isDefault": True,
+        "colors": [
+            "#22d3ee",
+            "#10b981",
+            "#38bdf8",
+            "#a78bfa",
+            "#f59e0b",
+            "#fb7185",
+            "#34d399",
+            "#60a5fa",
+            "#f472b6",
+            "#94a3b8",
+        ],
+    }
+]
 
 # Redis Cache (keeps repeated portfolio visits fast and CPU idle)
 # Note: Kubernetes auto-injects REDIS_PORT=tcp://<ip>:6379 for Services named "redis",

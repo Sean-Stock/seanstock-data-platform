@@ -90,6 +90,40 @@ def main() -> None:
             db.session.commit()
             print("[bootstrap] Granted Gamma role read access to UK Grid Warehouse (DuckDB)")
 
+        # Upsert the custom SeanStock.dev Dark theme and attach it to any unthemed showcase dashboards
+        try:
+            from superset.models.core import Theme
+            from superset.models.dashboard import Dashboard
+
+            theme_data = app.config.get("THEME_DARK")
+            if theme_data:
+                theme_json = json.dumps(theme_data)
+                custom_theme = db.session.query(Theme).filter_by(theme_name="SeanStock.dev Dark").first()
+                if not custom_theme:
+                    custom_theme = Theme(theme_name="SeanStock.dev Dark", json_data=theme_json)
+                    db.session.add(custom_theme)
+                    db.session.commit()
+                    print("[bootstrap] Created custom theme: SeanStock.dev Dark")
+                else:
+                    custom_theme.json_data = theme_json
+                    db.session.commit()
+                    print("[bootstrap] Updated custom theme: SeanStock.dev Dark")
+
+                # Keep system THEME_DARK synchronized as well
+                sys_dark = db.session.query(Theme).filter_by(theme_name="THEME_DARK").first()
+                if sys_dark:
+                    sys_dark.json_data = theme_json
+                    db.session.commit()
+
+                # Apply SeanStock.dev Dark to Dashboard #1 if not explicitly assigned another theme
+                for dash in db.session.query(Dashboard).all():
+                    if dash.theme_id is None:
+                        dash.theme_id = custom_theme.id
+                        print(f"[bootstrap] Applied 'SeanStock.dev Dark' theme to dashboard: {dash.dashboard_title}")
+                db.session.commit()
+        except Exception as exc:
+            print(f"[bootstrap] Warning configuring custom theme: {exc}")
+
 
 if __name__ == "__main__":
     main()
