@@ -20,6 +20,7 @@ GOLD_VIEWS = [
     "gold_national_generation",
     "gold_northwest_weather_energy",
     "gold_pipeline_runs",
+    "gold_dag_dispatch_runs",
 ]
 
 

@@ -22,6 +22,9 @@ import requests
 
 NESO_BASE = "https://api.carbonintensity.org.uk"
 OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
+DAG_TELEMETRY_URL = os.environ.get(
+    "DAG_TELEMETRY_URL", "https://seanstock.dev/api/leaderboard?format=events"
+)
 
 # Northwich, Cheshire (North West England — DNO Region 3)
 NORTHWICH_LAT = 53.2587
@@ -197,6 +200,49 @@ def extract_northwich_weather(session: requests.Session, past_days: int, extract
     return rows
 
 
+def extract_dag_dispatch(session: requests.Session, extracted_at: str) -> list[dict[str, Any]]:
+    """Pull live DAG Dispatch game telemetry runs from seanstock.dev Cloudflare KV."""
+    try:
+        payload = get_json(session, DAG_TELEMETRY_URL)
+    except Exception as exc:
+        print(f"[extract] warning: DAG Dispatch telemetry skipped ({exc})", file=sys.stderr)
+        return []
+
+    runs = payload.get("runs") or []
+    rows: list[dict[str, Any]] = []
+    for run in runs:
+        if not isinstance(run, dict) or not run.get("run_id"):
+            continue
+        rows.append(
+            {
+                "run_id": str(run["run_id"]),
+                "submitted_at_utc": str(run.get("submitted_at_utc") or extracted_at),
+                "handle": str(run.get("handle") or "ANON"),
+                "is_named_submission": bool(run.get("is_named_submission", False)),
+                "score": int(run.get("score") or 0),
+                "sprint": int(run.get("sprint") or 1),
+                "grade": str(run.get("grade") or "C"),
+                "efficiency_mult": float(run.get("efficiency_mult") or 1.0),
+                "outage_cause": str(run.get("outage_cause") or "UNKNOWN"),
+                "duration_sec": float(run.get("duration_sec") or 0.0),
+                "gold_delivered": int(run.get("gold_delivered") or 0),
+                "raw_delivered": int(run.get("raw_delivered") or 0),
+                "dirty_blocked": int(run.get("dirty_blocked") or 0),
+                "corrupt_leaked": int(run.get("corrupt_leaked") or 0),
+                "dupes_leaked": int(run.get("dupes_leaked") or 0),
+                "dropped_packets": int(run.get("dropped_packets") or 0),
+                "cache_hits": int(run.get("cache_hits") or 0),
+                "avg_latency_sec": float(run.get("avg_latency_sec") or 0.0),
+                "nodes_deployed": int(run.get("nodes_deployed") or 0),
+                "total_revenue": float(run.get("total_revenue") or 0.0),
+                "total_spend": float(run.get("total_spend") or 0.0),
+                "country": str(run.get("country") or "XX"),
+                "extracted_at": extracted_at,
+            }
+        )
+    return rows
+
+
 def main() -> int:
     data_dir = Path(os.environ.get("DATA_DIR", "/data"))
     lookback_hours = int(os.environ.get("LOOKBACK_HOURS", "48"))
@@ -215,15 +261,17 @@ def main() -> int:
         gen_rows = extract_national_generation(session, start, end, extracted_at)
         reg_rows = extract_regional_intensity(session, start, end, extracted_at)
         wx_rows = extract_northwich_weather(session, past_days=max(2, lookback_hours // 24 + 1), extracted_at=extracted_at)
+        dag_rows = extract_dag_dispatch(session, extracted_at)
 
     c_nat = write_partitioned_jsonl(bronze_root, "national_intensity", nat_rows, "interval_start")
     c_gen = write_partitioned_jsonl(bronze_root, "national_generation", gen_rows, "interval_start")
     c_reg = write_partitioned_jsonl(bronze_root, "regional_intensity", reg_rows, "interval_start")
     c_wx = write_partitioned_jsonl(bronze_root, "northwich_weather", wx_rows, "hour_start")
+    c_dag = write_partitioned_jsonl(bronze_root, "dag_dispatch", dag_rows, "submitted_at_utc")
 
     print(
         f"[extract] done: national_intensity={c_nat}, national_generation={c_gen}, "
-        f"regional_intensity={c_reg}, northwich_weather={c_wx}"
+        f"regional_intensity={c_reg}, northwich_weather={c_wx}, dag_dispatch={c_dag}"
     )
     return 0
 

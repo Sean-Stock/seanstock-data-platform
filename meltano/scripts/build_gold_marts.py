@@ -88,6 +88,7 @@ def rebuild_superset_views(data_dir: Path, superset_data_dir: str) -> None:
             "gold_national_generation": f"{gold_prefix}/gold_national_generation.parquet",
             "gold_northwest_weather_energy": f"{gold_prefix}/gold_northwest_weather_energy.parquet",
             "gold_pipeline_runs": f"{gold_prefix}/gold_pipeline_runs.parquet",
+            "gold_dag_dispatch_runs": f"{gold_prefix}/gold_dag_dispatch_runs.parquet",
         }
         for view_name, parquet_path in views.items():
             vcon.execute(f"CREATE OR REPLACE VIEW {view_name} AS SELECT * FROM read_parquet('{parquet_path}');")
@@ -288,6 +289,119 @@ def main() -> int:
         """
     )
 
+    # 4b. Gold DAG Dispatch Game Telemetry (deduplicated by run_id)
+    dag_bronze_files = list((bronze_dir / "dag_dispatch").glob("*.jsonl")) if (bronze_dir / "dag_dispatch").exists() else []
+    if dag_bronze_files:
+        con.execute(
+            f"""
+            COPY (
+                WITH raw AS (
+                    SELECT
+                        CAST(run_id AS VARCHAR) AS run_id,
+                        {ts_expr('submitted_at_utc')} AS submitted_at_utc,
+                        CAST(handle AS VARCHAR) AS handle,
+                        CAST(is_named_submission AS BOOLEAN) AS is_named_submission,
+                        CAST(score AS INTEGER) AS score,
+                        CAST(sprint AS INTEGER) AS sprint,
+                        CAST(grade AS VARCHAR) AS grade,
+                        CAST(efficiency_mult AS DOUBLE) AS efficiency_mult,
+                        CAST(outage_cause AS VARCHAR) AS outage_cause,
+                        CAST(duration_sec AS DOUBLE) AS duration_sec,
+                        CAST(gold_delivered AS INTEGER) AS gold_delivered,
+                        CAST(raw_delivered AS INTEGER) AS raw_delivered,
+                        CAST(dirty_blocked AS INTEGER) AS dirty_blocked,
+                        CAST(corrupt_leaked AS INTEGER) AS corrupt_leaked,
+                        CAST(dupes_leaked AS INTEGER) AS dupes_leaked,
+                        CAST(dropped_packets AS INTEGER) AS dropped_packets,
+                        CAST(cache_hits AS INTEGER) AS cache_hits,
+                        CAST(avg_latency_sec AS DOUBLE) AS avg_latency_sec,
+                        CAST(nodes_deployed AS INTEGER) AS nodes_deployed,
+                        CAST(total_revenue AS DOUBLE) AS total_revenue,
+                        CAST(total_spend AS DOUBLE) AS total_spend,
+                        CAST(country AS VARCHAR) AS country,
+                        {ts_expr('extracted_at')} AS extracted_at
+                    FROM read_json_auto('{bronze_dir / 'dag_dispatch' / '*.jsonl'}')
+                ),
+                dedup AS (
+                    SELECT *
+                    FROM raw
+                    QUALIFY ROW_NUMBER() OVER (
+                        PARTITION BY run_id
+                        ORDER BY is_named_submission DESC, extracted_at DESC
+                    ) = 1
+                )
+                SELECT
+                    run_id,
+                    submitted_at_utc,
+                    CAST(date_trunc('day', submitted_at_utc) AS DATE) AS run_date,
+                    handle,
+                    is_named_submission,
+                    score,
+                    sprint,
+                    grade,
+                    efficiency_mult,
+                    outage_cause,
+                    duration_sec,
+                    gold_delivered,
+                    raw_delivered,
+                    dirty_blocked,
+                    corrupt_leaked,
+                    dupes_leaked,
+                    dropped_packets,
+                    cache_hits,
+                    avg_latency_sec,
+                    nodes_deployed,
+                    total_revenue,
+                    total_spend,
+                    ROUND(total_revenue - total_spend, 1) AS net_margin_usd,
+                    ROUND(
+                        100.0 * (gold_delivered + raw_delivered) /
+                        NULLIF(gold_delivered + raw_delivered + corrupt_leaked + dupes_leaked, 0),
+                        1
+                    ) AS clean_rate_pct,
+                    country,
+                    extracted_at
+                FROM dedup
+                ORDER BY submitted_at_utc DESC
+            ) TO '{staging / 'gold_dag_dispatch_runs.parquet'}' (FORMAT PARQUET, COMPRESSION ZSTD);
+            """
+        )
+    else:
+        con.execute(
+            f"""
+            COPY (
+                SELECT
+                    CAST(NULL AS VARCHAR) AS run_id,
+                    CAST(NULL AS TIMESTAMPTZ) AS submitted_at_utc,
+                    CAST(NULL AS DATE) AS run_date,
+                    CAST(NULL AS VARCHAR) AS handle,
+                    CAST(NULL AS BOOLEAN) AS is_named_submission,
+                    CAST(NULL AS INTEGER) AS score,
+                    CAST(NULL AS INTEGER) AS sprint,
+                    CAST(NULL AS VARCHAR) AS grade,
+                    CAST(NULL AS DOUBLE) AS efficiency_mult,
+                    CAST(NULL AS VARCHAR) AS outage_cause,
+                    CAST(NULL AS DOUBLE) AS duration_sec,
+                    CAST(NULL AS INTEGER) AS gold_delivered,
+                    CAST(NULL AS INTEGER) AS raw_delivered,
+                    CAST(NULL AS INTEGER) AS dirty_blocked,
+                    CAST(NULL AS INTEGER) AS corrupt_leaked,
+                    CAST(NULL AS INTEGER) AS dupes_leaked,
+                    CAST(NULL AS INTEGER) AS dropped_packets,
+                    CAST(NULL AS INTEGER) AS cache_hits,
+                    CAST(NULL AS DOUBLE) AS avg_latency_sec,
+                    CAST(NULL AS INTEGER) AS nodes_deployed,
+                    CAST(NULL AS DOUBLE) AS total_revenue,
+                    CAST(NULL AS DOUBLE) AS total_spend,
+                    CAST(NULL AS DOUBLE) AS net_margin_usd,
+                    CAST(NULL AS DOUBLE) AS clean_rate_pct,
+                    CAST(NULL AS VARCHAR) AS country,
+                    CAST(NULL AS TIMESTAMPTZ) AS extracted_at
+                WHERE FALSE
+            ) TO '{staging / 'gold_dag_dispatch_runs.parquet'}' (FORMAT PARQUET, COMPRESSION ZSTD);
+            """
+        )
+
     # 5. Run Data Quality assertions before publishing
     dq_checks = run_dq_checks(con, staging)
 
@@ -329,10 +443,31 @@ def main() -> int:
                 (SELECT COUNT(*) FROM read_parquet('{staging / 'gold_national_intensity.parquet'}')) +
                 (SELECT COUNT(*) FROM read_parquet('{staging / 'gold_regional_mix.parquet'}')) +
                 (SELECT COUNT(*) FROM read_parquet('{staging / 'gold_national_generation.parquet'}')) +
-                (SELECT COUNT(*) FROM read_parquet('{staging / 'gold_northwest_weather_energy.parquet'}'))
+                (SELECT COUNT(*) FROM read_parquet('{staging / 'gold_northwest_weather_energy.parquet'}')) +
+                (SELECT COUNT(*) FROM read_parquet('{staging / 'gold_dag_dispatch_runs.parquet'}'))
             """
         ).fetchone()[0]
     )
+
+    dag_summary = con.execute(
+        f"""
+        SELECT
+            COUNT(*) AS total_shifts,
+            MAX(score) AS top_score,
+            ROUND(AVG(efficiency_mult), 2) AS avg_efficiency,
+            ROUND(AVG(clean_rate_pct), 1) AS avg_clean_pct
+        FROM read_parquet('{staging / 'gold_dag_dispatch_runs.parquet'}')
+        """
+    ).fetchone()
+    dag_top_cause = con.execute(
+        f"""
+        SELECT outage_cause
+        FROM read_parquet('{staging / 'gold_dag_dispatch_runs.parquet'}')
+        GROUP BY 1
+        ORDER BY COUNT(*) DESC
+        LIMIT 1
+        """
+    ).fetchone()
 
     duration_s = round(time.perf_counter() - started, 2)
 
@@ -399,6 +534,13 @@ def main() -> int:
             "interval_start": gb_latest[0].isoformat() if gb_latest and gb_latest[0] else None,
             "intensity_gco2": round(float(gb_latest[1]), 1) if gb_latest and gb_latest[1] is not None else None,
             "intensity_index": gb_latest[2] if gb_latest else None,
+        },
+        "dag_dispatch": {
+            "total_shifts": int(dag_summary[0]) if dag_summary else 0,
+            "top_score": int(dag_summary[1]) if dag_summary and dag_summary[1] is not None else 0,
+            "avg_efficiency": float(dag_summary[2]) if dag_summary and dag_summary[2] is not None else 1.0,
+            "avg_clean_pct": float(dag_summary[3]) if dag_summary and dag_summary[3] is not None else 100.0,
+            "top_outage_cause": dag_top_cause[0] if dag_top_cause else None,
         },
     }
 
